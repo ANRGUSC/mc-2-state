@@ -1,0 +1,833 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta name="theme-color" content="#0a0a1a">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="description" content="Interactive 2-state Markov chain explorer with steady state, coherence time, and probability evolution plots">
+    <title>Markov Chain Explorer</title>
+
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js"></script>
+
+    <script>
+        // PWA manifest via blob
+        const manifest = {
+            name: "Markov Chain Explorer",
+            short_name: "MarkovEx",
+            start_url: ".",
+            display: "standalone",
+            background_color: "#0a0a1a",
+            theme_color: "#0a0a1a",
+            description: "Two-state Markov chain analysis tool"
+        };
+        const blob = new Blob([JSON.stringify(manifest)], { type: 'application/json' });
+        const mLink = document.createElement('link');
+        mLink.rel = 'manifest';
+        mLink.href = URL.createObjectURL(blob);
+        document.head.appendChild(mLink);
+
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        dark: '#0a0a1a',
+                        card: '#111125',
+                        neon: {
+                            cyan: '#00e5ff',
+                            pink: '#ff2d95',
+                            green: '#00ff88',
+                            purple: '#b44aff',
+                        }
+                    }
+                }
+            }
+        };
+    </script>
+
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+
+    <style>
+        * { box-sizing: border-box; }
+        body {
+            background: #0a0a1a;
+            color: #e0e0e0;
+            font-family: 'Inter', system-ui, sans-serif;
+            margin: 0;
+        }
+
+        ::-webkit-scrollbar { width: 6px; }
+        ::-webkit-scrollbar-track { background: #0a0a1a; }
+        ::-webkit-scrollbar-thumb { background: #1a1a3a; border-radius: 3px; }
+
+        .glow-cyan { text-shadow: 0 0 12px #00e5ff, 0 0 40px #00e5ff40; }
+        .glow-pink { text-shadow: 0 0 12px #ff2d95, 0 0 40px #ff2d9540; }
+        .glow-green { text-shadow: 0 0 10px #00ff88, 0 0 30px #00ff8840; }
+
+        .glass {
+            background: linear-gradient(145deg, #111125e8, #0d0d20e8);
+            border: 1px solid #ffffff0d;
+            backdrop-filter: blur(12px);
+            border-radius: 16px;
+        }
+
+        /* Range slider - Webkit */
+        input[type="range"] {
+            -webkit-appearance: none;
+            appearance: none;
+            width: 100%;
+            height: 6px;
+            border-radius: 3px;
+            outline: none;
+            background: #1a1a3a;
+            cursor: pointer;
+        }
+        input[type="range"]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            appearance: none;
+            width: 22px;
+            height: 22px;
+            border-radius: 50%;
+            cursor: pointer;
+            border: 2px solid;
+            transition: box-shadow 0.2s;
+        }
+        input[type="range"].slider-cyan::-webkit-slider-thumb {
+            background: #00e5ff;
+            border-color: #00e5ff;
+            box-shadow: 0 0 12px #00e5ff90;
+        }
+        input[type="range"].slider-cyan::-webkit-slider-thumb:hover {
+            box-shadow: 0 0 24px #00e5ffcc;
+        }
+        input[type="range"].slider-pink::-webkit-slider-thumb {
+            background: #ff2d95;
+            border-color: #ff2d95;
+            box-shadow: 0 0 12px #ff2d9590;
+        }
+        input[type="range"].slider-pink::-webkit-slider-thumb:hover {
+            box-shadow: 0 0 24px #ff2d95cc;
+        }
+        /* Range slider - Firefox */
+        input[type="range"]::-moz-range-thumb {
+            width: 20px;
+            height: 20px;
+            border-radius: 50%;
+            cursor: pointer;
+            border: 2px solid;
+        }
+        input[type="range"].slider-cyan::-moz-range-thumb {
+            background: #00e5ff;
+            border-color: #00e5ff;
+            box-shadow: 0 0 12px #00e5ff90;
+        }
+        input[type="range"].slider-pink::-moz-range-thumb {
+            background: #ff2d95;
+            border-color: #ff2d95;
+            box-shadow: 0 0 12px #ff2d9590;
+        }
+        input[type="range"]::-moz-range-track {
+            height: 6px;
+            border-radius: 3px;
+            background: #1a1a3a;
+            border: none;
+        }
+
+        .num-input {
+            background: #08081a;
+            border: 1px solid #ffffff15;
+            border-radius: 8px;
+            padding: 6px 8px;
+            width: 76px;
+            text-align: center;
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 14px;
+            outline: none;
+            transition: border-color 0.25s, box-shadow 0.25s;
+        }
+        .num-input:focus { border-color: #00e5ff60; box-shadow: 0 0 10px #00e5ff25; }
+        .num-input.cyan { color: #00e5ff; }
+        .num-input.pink { color: #ff2d95; }
+
+        .matrix-cell {
+            font-family: 'JetBrains Mono', monospace;
+            padding: 14px 10px;
+            text-align: center;
+            font-size: 15px;
+            font-weight: 600;
+            letter-spacing: 0.03em;
+            transition: all 0.35s;
+            border-radius: 10px;
+        }
+
+        .ss-bar {
+            height: 10px;
+            border-radius: 5px;
+            transition: width 0.45s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+
+        .mode-btn {
+            padding: 8px 22px;
+            border-radius: 10px;
+            font-size: 13px;
+            font-weight: 600;
+            transition: all 0.3s;
+            cursor: pointer;
+            border: 1px solid transparent;
+            font-family: 'JetBrains Mono', monospace;
+            user-select: none;
+        }
+        .mode-btn.active {
+            background: #00e5ff12;
+            border-color: #00e5ff50;
+            color: #00e5ff;
+            box-shadow: 0 0 14px #00e5ff20;
+        }
+        .mode-btn:not(.active) {
+            background: transparent;
+            border-color: #ffffff0d;
+            color: #555;
+        }
+        .mode-btn:not(.active):hover {
+            border-color: #ffffff20;
+            color: #888;
+        }
+
+        .bg-grid {
+            background-image:
+                linear-gradient(#ffffff03 1px, transparent 1px),
+                linear-gradient(90deg, #ffffff03 1px, transparent 1px);
+            background-size: 48px 48px;
+        }
+
+        @keyframes fadeUp {
+            from { opacity: 0; transform: translateY(14px); }
+            to   { opacity: 1; transform: translateY(0); }
+        }
+        .anim { animation: fadeUp 0.55s ease forwards; opacity: 0; }
+
+        .badge {
+            font-family: 'JetBrains Mono', monospace;
+            padding: 8px 14px;
+            border-radius: 10px;
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            font-size: 13px;
+        }
+
+        .formula-note {
+            font-size: 11px;
+            color: #444;
+            font-family: 'JetBrains Mono', monospace;
+            margin-top: 4px;
+        }
+
+        /* Active (user-set) vs derived cell styling */
+        .cell-active-cyan {
+            color: #00e5ff;
+            border: 1px solid #00e5ff30;
+            background: #00e5ff06;
+        }
+        .cell-active-pink {
+            color: #ff2d95;
+            border: 1px solid #ff2d9530;
+            background: #ff2d9506;
+        }
+        .cell-derived {
+            color: #666;
+            border: 1px solid #ffffff08;
+            background: #08081a;
+        }
+    </style>
+</head>
+
+<body class="bg-grid min-h-screen">
+<div class="max-w-5xl mx-auto px-4 py-8 space-y-5">
+
+    <!-- Header -->
+    <header class="text-center space-y-2 mb-6 anim">
+        <h1 class="text-3xl md:text-4xl font-bold tracking-tight leading-tight">
+            <span class="glow-cyan text-neon-cyan">Markov</span>
+            <span class="text-white/80">&ensp;Chain&ensp;</span>
+            <span class="glow-pink text-neon-pink">Explorer</span>
+        </h1>
+        <p class="text-xs text-gray-600 font-mono tracking-widest uppercase">Two-State Transition Analysis</p>
+    </header>
+
+    <!-- ─── Input Section ─── -->
+    <section class="glass p-6 space-y-6 anim" style="animation-delay:.07s">
+
+        <!-- Mode toggle -->
+        <div class="flex flex-wrap items-center justify-center gap-3">
+            <span class="text-[11px] text-gray-600 uppercase tracking-widest">Input&ensp;Mode</span>
+            <div class="flex gap-2">
+                <button id="mode1" class="mode-btn active" onclick="setMode(1)">p<sub>01</sub>&ensp;&&ensp;p<sub>10</sub></button>
+                <button id="mode2" class="mode-btn"        onclick="setMode(2)">p<sub>01</sub>&ensp;&&ensp;p<sub>11</sub></button>
+            </div>
+        </div>
+
+        <!-- Sliders -->
+        <div class="grid md:grid-cols-2 gap-6">
+            <!-- p01 -->
+            <div class="space-y-2">
+                <div class="flex justify-between items-center">
+                    <label class="text-sm font-medium text-neon-cyan">
+                        p<sub>01</sub>
+                        <span class="text-gray-600 text-xs ml-1">(0 &rarr; 1)</span>
+                    </label>
+                    <input type="number" id="num_p01" class="num-input cyan"
+                           value="0.30" min="0" max="1" step="0.01"
+                           oninput="onNumInput('p01')">
+                </div>
+                <input type="range" id="slider_p01" class="slider-cyan"
+                       value="0.30" min="0" max="1" step="0.001"
+                       oninput="onSliderInput('p01')">
+            </div>
+            <!-- second (p10 or p11) -->
+            <div class="space-y-2">
+                <div class="flex justify-between items-center">
+                    <label id="label_second" class="text-sm font-medium text-neon-pink">
+                        p<sub>10</sub>
+                        <span class="text-gray-600 text-xs ml-1">(1 &rarr; 0)</span>
+                    </label>
+                    <input type="number" id="num_second" class="num-input pink"
+                           value="0.50" min="0" max="1" step="0.01"
+                           oninput="onNumInput('second')">
+                </div>
+                <input type="range" id="slider_second" class="slider-pink"
+                       value="0.50" min="0" max="1" step="0.001"
+                       oninput="onSliderInput('second')">
+            </div>
+        </div>
+
+        <!-- Transition Matrix -->
+        <div>
+            <div class="text-[11px] text-gray-600 uppercase tracking-widest mb-3 text-center">Transition Matrix</div>
+            <div class="max-w-xs mx-auto">
+                <div class="grid grid-cols-[40px_1fr_1fr] gap-[5px] mb-[5px]">
+                    <div></div>
+                    <div class="text-[11px] text-gray-500 text-center font-mono">&rarr;&thinsp;0</div>
+                    <div class="text-[11px] text-gray-500 text-center font-mono">&rarr;&thinsp;1</div>
+                </div>
+                <div class="grid grid-cols-[40px_1fr_1fr] gap-[5px] mb-[5px]">
+                    <div class="text-[11px] text-gray-500 flex items-center justify-center font-mono">0&thinsp;&rarr;</div>
+                    <div id="cell_p00" class="matrix-cell cell-derived">0.700</div>
+                    <div id="cell_p01" class="matrix-cell cell-active-cyan">0.300</div>
+                </div>
+                <div class="grid grid-cols-[40px_1fr_1fr] gap-[5px]">
+                    <div class="text-[11px] text-gray-500 flex items-center justify-center font-mono">1&thinsp;&rarr;</div>
+                    <div id="cell_p10" class="matrix-cell cell-active-pink">0.500</div>
+                    <div id="cell_p11" class="matrix-cell cell-derived">0.500</div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- ─── Results: Steady State + Coherence ─── -->
+    <div class="grid md:grid-cols-2 gap-4">
+
+        <!-- Steady State -->
+        <section class="glass p-6 space-y-4 anim" style="animation-delay:.15s">
+            <h2 class="text-[11px] text-gray-600 uppercase tracking-widest">Steady-State Distribution</h2>
+
+            <div class="space-y-4">
+                <div>
+                    <div class="flex justify-between items-center mb-1.5">
+                        <span class="text-sm font-mono text-neon-cyan font-semibold">&pi;<sub>0</sub></span>
+                        <span id="ss_val0" class="text-sm font-mono text-neon-cyan font-semibold">0.6250</span>
+                    </div>
+                    <div class="w-full bg-[#08081a] rounded-full h-[10px] overflow-hidden">
+                        <div id="ss_bar0" class="ss-bar" style="width:62.5%;background:linear-gradient(90deg,#00e5ff90,#00e5ff40)"></div>
+                    </div>
+                </div>
+                <div>
+                    <div class="flex justify-between items-center mb-1.5">
+                        <span class="text-sm font-mono text-neon-pink font-semibold">&pi;<sub>1</sub></span>
+                        <span id="ss_val1" class="text-sm font-mono text-neon-pink font-semibold">0.3750</span>
+                    </div>
+                    <div class="w-full bg-[#08081a] rounded-full h-[10px] overflow-hidden">
+                        <div id="ss_bar1" class="ss-bar" style="width:37.5%;background:linear-gradient(90deg,#ff2d9590,#ff2d9540)"></div>
+                    </div>
+                </div>
+            </div>
+
+            <p id="ss_note" class="formula-note hidden"></p>
+        </section>
+
+        <!-- Coherence Time -->
+        <section class="glass p-6 space-y-4 anim" style="animation-delay:.22s">
+            <h2 class="text-[11px] text-gray-600 uppercase tracking-widest">Coherence Time</h2>
+            <p class="text-[11px] text-gray-600 -mt-2">Expected steps in a state before leaving</p>
+
+            <div class="space-y-3">
+                <div class="flex items-center justify-between">
+                    <span class="text-sm text-gray-500">State 0</span>
+                    <span class="badge bg-[#00e5ff0a] border border-[#00e5ff22]">
+                        <span class="text-[11px] text-gray-600">&tau;<sub>0</sub>&ensp;=</span>
+                        <span id="tau0" class="text-neon-cyan font-semibold">3.33</span>
+                        <span class="text-[11px] text-gray-600">steps</span>
+                    </span>
+                </div>
+                <div class="flex items-center justify-between">
+                    <span class="text-sm text-gray-500">State 1</span>
+                    <span class="badge bg-[#ff2d950a] border border-[#ff2d9522]">
+                        <span class="text-[11px] text-gray-600">&tau;<sub>1</sub>&ensp;=</span>
+                        <span id="tau1" class="text-neon-pink font-semibold">2.00</span>
+                        <span class="text-[11px] text-gray-600">steps</span>
+                    </span>
+                </div>
+                <div class="flex items-center justify-between pt-3 border-t border-white/[.04]">
+                    <span class="text-sm text-gray-500">Weighted avg</span>
+                    <span class="badge bg-[#00ff880a] border border-[#00ff8822]">
+                        <span class="text-[11px] text-gray-600">&tau;&#772;&ensp;=</span>
+                        <span id="tau_avg" class="text-neon-green font-semibold">2.83</span>
+                        <span class="text-[11px] text-gray-600">steps</span>
+                    </span>
+                </div>
+            </div>
+
+            <p class="formula-note">&tau;<sub>i</sub> = 1/p<sub>i&ne;i</sub> &ensp;|&ensp; &tau;&#772; = &pi;<sub>0</sub>&tau;<sub>0</sub> + &pi;<sub>1</sub>&tau;<sub>1</sub></p>
+        </section>
+    </div>
+
+    <!-- ─── Charts ─── -->
+    <div class="grid md:grid-cols-2 gap-4">
+        <section class="glass p-5 anim" style="animation-delay:.30s">
+            <h3 class="text-[11px] text-gray-600 uppercase tracking-widest mb-3">
+                Conditioned on&ensp;<span class="text-neon-cyan font-bold">State 0</span>
+            </h3>
+            <div style="position:relative;height:280px">
+                <canvas id="chart0"></canvas>
+            </div>
+        </section>
+        <section class="glass p-5 anim" style="animation-delay:.37s">
+            <h3 class="text-[11px] text-gray-600 uppercase tracking-widest mb-3">
+                Conditioned on&ensp;<span class="text-neon-pink font-bold">State 1</span>
+            </h3>
+            <div style="position:relative;height:280px">
+                <canvas id="chart1"></canvas>
+            </div>
+        </section>
+    </div>
+
+    <!-- ─── Sample Trajectory ─── -->
+    <section class="glass p-5 anim" style="animation-delay:.44s">
+        <div class="flex flex-wrap items-center justify-between gap-3 mb-3">
+            <h3 class="text-[11px] text-gray-600 uppercase tracking-widest">
+                Sample Trajectory
+            </h3>
+            <div class="flex items-center gap-3">
+                <span id="simStats" class="text-[11px] font-mono text-gray-600"></span>
+                <button id="btnResample" onclick="resample()"
+                    class="mode-btn active text-[12px] !py-1.5 !px-4"
+                    style="background:#00ff8810;border-color:#00ff8840;color:#00ff88;box-shadow:0 0 10px #00ff8818">
+                    &#8635;&ensp;Resample
+                </button>
+            </div>
+        </div>
+        <div style="position:relative;height:150px">
+            <canvas id="chartSim"></canvas>
+        </div>
+    </section>
+
+    <footer class="text-center text-[11px] text-gray-700 pt-2 pb-6 font-mono">
+        Markov Chain Explorer &middot; 2-State Transition Analysis
+    </footer>
+</div>
+
+<script>
+// ── State ──
+let mode = 1; // 1 = p01 & p10, 2 = p01 & p11
+let chart0Inst = null;
+let chart1Inst = null;
+
+// ── Getters ──
+const $ = id => document.getElementById(id);
+const sliderVal = id => parseFloat($(id).value);
+
+function getP01()  { return sliderVal('slider_p01'); }
+function getSecond(){ return sliderVal('slider_second'); }
+function getP10()  { return mode === 1 ? getSecond() : 1 - getSecond(); }
+
+// ── Mode switch ──
+function setMode(m) {
+    const p10Prev = getP10();
+    mode = m;
+    $('mode1').classList.toggle('active', m === 1);
+    $('mode2').classList.toggle('active', m === 2);
+
+    if (m === 1) {
+        $('label_second').innerHTML = 'p<sub>10</sub> <span class="text-gray-600 text-xs ml-1">(1 &rarr; 0)</span>';
+        $('slider_second').value = p10Prev;
+        $('num_second').value = p10Prev.toFixed(2);
+    } else {
+        $('label_second').innerHTML = 'p<sub>11</sub> <span class="text-gray-600 text-xs ml-1">(1 &rarr; 1)</span>';
+        const p11 = 1 - p10Prev;
+        $('slider_second').value = p11;
+        $('num_second').value = p11.toFixed(2);
+    }
+    update();
+}
+
+// ── Input handlers ──
+function onSliderInput(which) {
+    if (which === 'p01') {
+        $('num_p01').value = getP01().toFixed(2);
+    } else {
+        $('num_second').value = getSecond().toFixed(2);
+    }
+    update();
+}
+
+function onNumInput(which) {
+    if (which === 'p01') {
+        let v = parseFloat($('num_p01').value);
+        if (isNaN(v)) return;
+        v = Math.max(0, Math.min(1, v));
+        $('slider_p01').value = v;
+    } else {
+        let v = parseFloat($('num_second').value);
+        if (isNaN(v)) return;
+        v = Math.max(0, Math.min(1, v));
+        $('slider_second').value = v;
+    }
+    update();
+}
+
+// ── Core computation + update ──
+function update() {
+    const p01 = getP01();
+    const p10 = getP10();
+    const p00 = 1 - p01;
+    const p11 = 1 - p10;
+
+    // Matrix cells
+    $('cell_p00').textContent = p00.toFixed(3);
+    $('cell_p01').textContent = p01.toFixed(3);
+    $('cell_p10').textContent = p10.toFixed(3);
+    $('cell_p11').textContent = p11.toFixed(3);
+
+    // Highlight active vs derived
+    $('cell_p01').className = 'matrix-cell cell-active-cyan';
+    $('cell_p00').className = 'matrix-cell cell-derived';
+    if (mode === 1) {
+        $('cell_p10').className = 'matrix-cell cell-active-pink';
+        $('cell_p11').className = 'matrix-cell cell-derived';
+    } else {
+        $('cell_p11').className = 'matrix-cell cell-active-pink';
+        $('cell_p10').className = 'matrix-cell cell-derived';
+    }
+
+    // Steady state: pi0 = p10/(p01+p10), pi1 = p01/(p01+p10)
+    const sum = p01 + p10;
+    let pi0, pi1;
+    if (sum < 1e-12) {
+        pi0 = 0.5; pi1 = 0.5;
+        $('ss_note').textContent = 'Both states absorbing — steady state undefined';
+        $('ss_note').classList.remove('hidden');
+    } else {
+        pi0 = p10 / sum;
+        pi1 = p01 / sum;
+        $('ss_note').classList.add('hidden');
+    }
+
+    $('ss_val0').textContent = pi0.toFixed(4);
+    $('ss_val1').textContent = pi1.toFixed(4);
+    $('ss_bar0').style.width = (pi0 * 100) + '%';
+    $('ss_bar1').style.width = (pi1 * 100) + '%';
+
+    // Coherence time
+    const tau0 = p01 > 1e-15 ? 1 / p01 : Infinity;
+    const tau1 = p10 > 1e-15 ? 1 / p10 : Infinity;
+    const tauAvg = (isFinite(tau0) && isFinite(tau1)) ? pi0 * tau0 + pi1 * tau1 : Infinity;
+
+    $('tau0').textContent     = isFinite(tau0)    ? tau0.toFixed(2)    : '\u221e';
+    $('tau1').textContent     = isFinite(tau1)    ? tau1.toFixed(2)    : '\u221e';
+    $('tau_avg').textContent  = isFinite(tauAvg)  ? tauAvg.toFixed(2)  : '\u221e';
+
+    // Probability evolution: P^n_{ij}
+    // lambda = 1 - p01 - p10 (second eigenvalue)
+    const lam = 1 - p01 - p10;
+    const absLam = Math.abs(lam);
+
+    // Number of steps to show (~5 time-constants of decay)
+    let N = 30;
+    if (absLam > 0 && absLam < 1) {
+        N = Math.min(120, Math.max(20, Math.ceil(5 / -Math.log10(absLam))));
+    } else if (absLam >= 1) {
+        N = 50;
+    }
+
+    const labels = [];
+    const f0_s0 = [], f0_s1 = []; // from state 0: P(state 0), P(state 1)
+    const f1_s0 = [], f1_s1 = []; // from state 1: P(state 0), P(state 1)
+    const ss0 = [], ss1 = [];
+
+    for (let n = 0; n <= N; n++) {
+        labels.push(n);
+        const ln = Math.pow(lam, n);
+
+        // P^n_{00} = pi0 + pi1 * lambda^n
+        f0_s0.push(pi0 + pi1 * ln);
+        // P^n_{01} = pi1 * (1 - lambda^n)
+        f0_s1.push(pi1 * (1 - ln));
+        // P^n_{10} = pi0 * (1 - lambda^n)
+        f1_s0.push(pi0 * (1 - ln));
+        // P^n_{11} = pi1 + pi0 * lambda^n
+        f1_s1.push(pi1 + pi0 * ln);
+
+        ss0.push(pi0);
+        ss1.push(pi1);
+    }
+
+    renderChart('chart0', 0, labels, f0_s0, f0_s1, ss0, ss1);
+    renderChart('chart1', 1, labels, f1_s0, f1_s1, ss0, ss1);
+
+    // Simulation
+    runSimulation(p01, p10, pi0);
+}
+
+// ── Chart rendering ──
+const chartInstances = [null, null];
+
+function chartCfg(labels, dataS0, dataS1, ssArr0, ssArr1) {
+    return {
+        type: 'line',
+        data: {
+            labels,
+            datasets: [
+                {
+                    label: 'P(State 0)',
+                    data: dataS0,
+                    borderColor: '#00e5ff',
+                    backgroundColor: '#00e5ff18',
+                    borderWidth: 2.5,
+                    pointRadius: 0,
+                    pointHoverRadius: 5,
+                    pointHoverBackgroundColor: '#00e5ff',
+                    tension: 0.35,
+                    fill: false,
+                },
+                {
+                    label: 'P(State 1)',
+                    data: dataS1,
+                    borderColor: '#ff2d95',
+                    backgroundColor: '#ff2d9518',
+                    borderWidth: 2.5,
+                    pointRadius: 0,
+                    pointHoverRadius: 5,
+                    pointHoverBackgroundColor: '#ff2d95',
+                    tension: 0.35,
+                    fill: false,
+                },
+                {
+                    label: '\u03c0\u2080 steady',
+                    data: ssArr0,
+                    borderColor: '#00e5ff35',
+                    borderWidth: 1,
+                    borderDash: [6, 5],
+                    pointRadius: 0,
+                    pointHoverRadius: 0,
+                    fill: false,
+                },
+                {
+                    label: '\u03c0\u2081 steady',
+                    data: ssArr1,
+                    borderColor: '#ff2d9535',
+                    borderWidth: 1,
+                    borderDash: [6, 5],
+                    pointRadius: 0,
+                    pointHoverRadius: 0,
+                    fill: false,
+                }
+            ]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            animation: { duration: 250, easing: 'easeOutQuart' },
+            interaction: { mode: 'index', intersect: false },
+            plugins: {
+                legend: {
+                    labels: {
+                        color: '#777',
+                        font: { family: "'JetBrains Mono',monospace", size: 11 },
+                        boxWidth: 18, boxHeight: 2, padding: 14,
+                        filter: item => !item.text.includes('steady'),
+                    }
+                },
+                tooltip: {
+                    backgroundColor: '#111125ee',
+                    titleColor: '#bbb', bodyColor: '#999',
+                    borderColor: '#ffffff12', borderWidth: 1,
+                    titleFont: { family: "'JetBrains Mono',monospace", size: 12 },
+                    bodyFont:  { family: "'JetBrains Mono',monospace", size: 12 },
+                    padding: 10, cornerRadius: 10,
+                    filter: item => !item.dataset.label.includes('steady'),
+                    callbacks: { label: ctx => `${ctx.dataset.label}: ${ctx.parsed.y.toFixed(4)}` }
+                }
+            },
+            scales: {
+                x: {
+                    title: { display: true, text: 'Time Step n', color: '#444',
+                             font: { family: "'JetBrains Mono',monospace", size: 11 } },
+                    ticks: { color: '#333', font: { family: "'JetBrains Mono',monospace", size: 10 },
+                             maxTicksLimit: 12 },
+                    grid:  { color: '#ffffff06' },
+                    border:{ color: '#ffffff0a' }
+                },
+                y: {
+                    min: 0, max: 1,
+                    title: { display: true, text: 'Probability', color: '#444',
+                             font: { family: "'JetBrains Mono',monospace", size: 11 } },
+                    ticks: { color: '#333', font: { family: "'JetBrains Mono',monospace", size: 10 },
+                             stepSize: 0.2,
+                             callback: v => v.toFixed(1) },
+                    grid:  { color: '#ffffff06' },
+                    border:{ color: '#ffffff0a' }
+                }
+            }
+        }
+    };
+}
+
+function renderChart(canvasId, idx, labels, d0, d1, ss0, ss1) {
+    if (chartInstances[idx]) {
+        const c = chartInstances[idx];
+        c.data.labels = labels;
+        c.data.datasets[0].data = d0;
+        c.data.datasets[1].data = d1;
+        c.data.datasets[2].data = ss0;
+        c.data.datasets[3].data = ss1;
+        c.update('none');
+    } else {
+        const ctx = $(canvasId).getContext('2d');
+        chartInstances[idx] = new Chart(ctx, chartCfg(labels, d0, d1, ss0, ss1));
+    }
+}
+
+// ── Simulation ──
+let simChartInst = null;
+
+function simulate(p01, p10, pi0, steps) {
+    const path = new Array(steps + 1);
+    path[0] = Math.random() < pi0 ? 0 : 1;
+    for (let i = 1; i <= steps; i++) {
+        path[i] = path[i - 1] === 0
+            ? (Math.random() < p01 ? 1 : 0)
+            : (Math.random() < p10 ? 0 : 1);
+    }
+    return path;
+}
+
+function simStats(path) {
+    let transitions = 0;
+    let count0 = 0;
+    for (let i = 0; i < path.length; i++) {
+        if (path[i] === 0) count0++;
+        if (i > 0 && path[i] !== path[i - 1]) transitions++;
+    }
+    const n = path.length;
+    const avgDwell = transitions > 0 ? ((n - 1) / transitions).toFixed(1) : '\u221e';
+    return `${transitions} transitions \u00b7 avg dwell ${avgDwell} \u00b7 empirical \u03c0\u2080=${(count0/n).toFixed(2)}`;
+}
+
+function runSimulation(p01, p10, pi0) {
+    // Scale steps to ~15 coherence times so you see the pattern
+    const tauEst = (p01 + p10) > 1e-12 ? 1 / (p01 + p10) : 100;
+    const steps = Math.max(150, Math.min(600, Math.round(20 * tauEst)));
+    const path = simulate(p01, p10, pi0, steps);
+
+    $('simStats').textContent = simStats(path);
+
+    const labels = [];
+    for (let i = 0; i <= steps; i++) labels.push(i);
+
+    if (simChartInst) {
+        simChartInst.data.labels = labels;
+        simChartInst.data.datasets[0].data = path;
+        simChartInst.update('none');
+    } else {
+        const ctx = $('chartSim').getContext('2d');
+        simChartInst = new Chart(ctx, {
+            type: 'line',
+            data: {
+                labels,
+                datasets: [{
+                    label: 'State',
+                    data: path,
+                    borderWidth: 1.8,
+                    pointRadius: 0,
+                    pointHoverRadius: 3,
+                    stepped: 'before',
+                    fill: true,
+                    segment: {
+                        borderColor: ctx => ctx.p0.parsed.y === 0 ? '#00e5ffbb' : '#ff2d95bb',
+                        backgroundColor: ctx => ctx.p0.parsed.y === 0 ? '#00e5ff12' : '#ff2d9512',
+                    },
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                animation: false,
+                interaction: { mode: 'index', intersect: false },
+                plugins: {
+                    legend: { display: false },
+                    tooltip: {
+                        backgroundColor: '#111125ee',
+                        titleColor: '#bbb', bodyColor: '#999',
+                        borderColor: '#ffffff12', borderWidth: 1,
+                        titleFont: { family: "'JetBrains Mono',monospace", size: 12 },
+                        bodyFont:  { family: "'JetBrains Mono',monospace", size: 12 },
+                        padding: 8, cornerRadius: 8,
+                        callbacks: {
+                            label: ctx => `State ${ctx.parsed.y}`
+                        }
+                    }
+                },
+                scales: {
+                    x: {
+                        title: { display: true, text: 'Time Step', color: '#444',
+                                 font: { family: "'JetBrains Mono',monospace", size: 10 } },
+                        ticks: { color: '#333', font: { family: "'JetBrains Mono',monospace", size: 9 },
+                                 maxTicksLimit: 14 },
+                        grid:  { color: '#ffffff04' },
+                        border:{ color: '#ffffff0a' }
+                    },
+                    y: {
+                        min: -0.15, max: 1.15,
+                        title: { display: true, text: 'State', color: '#444',
+                                 font: { family: "'JetBrains Mono',monospace", size: 10 } },
+                        ticks: {
+                            color: '#555',
+                            font: { family: "'JetBrains Mono',monospace", size: 10 },
+                            stepSize: 1,
+                            callback: v => v === 0 ? '0' : v === 1 ? '1' : ''
+                        },
+                        grid:  { color: '#ffffff04' },
+                        border:{ color: '#ffffff0a' }
+                    }
+                }
+            }
+        });
+    }
+}
+
+function resample() {
+    const p01 = getP01();
+    const p10 = getP10();
+    const sum = p01 + p10;
+    const pi0 = sum < 1e-12 ? 0.5 : p10 / sum;
+    runSimulation(p01, p10, pi0);
+}
+
+// ── Init ──
+update();
+</script>
+</body>
+</html>
