@@ -1,0 +1,723 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="theme-color" content="#0a0a1a">
+    <meta name="description" content="A complete tutorial on 2-state Markov chains: transition matrices, steady state, coherence time, and correlation structure">
+    <title>Tutorial — Two-State Markov Chains</title>
+
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.min.css">
+    <script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.min.js"></script>
+    <script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/contrib/auto-render.min.js"
+        onload="renderMathInElement(document.body,{delimiters:[{left:'$$',right:'$$',display:true},{left:'$',right:'$',display:false}],throwOnError:false})"></script>
+
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        dark: '#0a0a1a',
+                        neon: { cyan: '#00e5ff', pink: '#ff2d95', green: '#00ff88', purple: '#b44aff' }
+                    }
+                }
+            }
+        };
+    </script>
+
+    <style>
+        * { box-sizing: border-box; }
+        body {
+            background: #0a0a1a;
+            color: #c8c8d0;
+            font-family: 'Inter', system-ui, sans-serif;
+            margin: 0;
+            line-height: 1.8;
+        }
+
+        ::-webkit-scrollbar { width: 6px; }
+        ::-webkit-scrollbar-track { background: #0a0a1a; }
+        ::-webkit-scrollbar-thumb { background: #1a1a3a; border-radius: 3px; }
+
+        .katex { color: inherit; }
+        .katex-display { overflow-x: auto; overflow-y: hidden; padding: 4px 0; }
+
+        .glow-cyan { text-shadow: 0 0 12px #00e5ff, 0 0 40px #00e5ff40; }
+        .glow-pink { text-shadow: 0 0 12px #ff2d95, 0 0 40px #ff2d9540; }
+
+        .glass {
+            background: linear-gradient(145deg, #111125e8, #0d0d20e8);
+            border: 1px solid #ffffff0d;
+            border-radius: 16px;
+        }
+
+        .bg-grid {
+            background-image:
+                linear-gradient(#ffffff03 1px, transparent 1px),
+                linear-gradient(90deg, #ffffff03 1px, transparent 1px);
+            background-size: 48px 48px;
+        }
+
+        article h2 {
+            font-size: 1.5rem;
+            font-weight: 700;
+            margin-top: 3rem;
+            margin-bottom: 1rem;
+            padding-bottom: 0.5rem;
+            border-bottom: 1px solid #ffffff0a;
+        }
+        article h3 {
+            font-size: 1.1rem;
+            font-weight: 600;
+            margin-top: 1.8rem;
+            margin-bottom: 0.6rem;
+            color: #ddd;
+        }
+        article p { margin-bottom: 1rem; }
+        article ul, article ol { margin-bottom: 1rem; padding-left: 1.5rem; }
+        article li { margin-bottom: 0.35rem; }
+
+        .result {
+            background: #00ff880a;
+            border: 1px solid #00ff8825;
+            border-left: 3px solid #00ff8860;
+            border-radius: 10px;
+            padding: 1rem 1.25rem;
+            margin: 1.25rem 0;
+        }
+        .result-label {
+            font-size: 11px;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.1em;
+            color: #00ff88;
+            margin-bottom: 0.4rem;
+        }
+
+        .definition {
+            background: #00e5ff08;
+            border: 1px solid #00e5ff20;
+            border-left: 3px solid #00e5ff50;
+            border-radius: 10px;
+            padding: 1rem 1.25rem;
+            margin: 1.25rem 0;
+        }
+        .def-label {
+            font-size: 11px;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.1em;
+            color: #00e5ff;
+            margin-bottom: 0.4rem;
+        }
+
+        .remark {
+            background: #b44aff08;
+            border: 1px solid #b44aff20;
+            border-left: 3px solid #b44aff50;
+            border-radius: 10px;
+            padding: 1rem 1.25rem;
+            margin: 1.25rem 0;
+            font-size: 0.95rem;
+        }
+        .remark-label {
+            font-size: 11px;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.1em;
+            color: #b44aff;
+            margin-bottom: 0.4rem;
+        }
+
+        .toc a {
+            color: #888;
+            text-decoration: none;
+            transition: color 0.2s;
+        }
+        .toc a:hover { color: #00e5ff; }
+        .toc ol { counter-reset: toc; list-style: none; padding-left: 0; }
+        .toc li { counter-increment: toc; margin-bottom: 0.4rem; }
+        .toc li::before {
+            content: counter(toc) ".";
+            color: #00e5ff60;
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 13px;
+            margin-right: 8px;
+        }
+
+        a.back-link {
+            color: #00e5ff;
+            text-decoration: none;
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 13px;
+            transition: color 0.2s;
+        }
+        a.back-link:hover { color: #fff; }
+
+        .section-num {
+            color: #00e5ff40;
+            font-family: 'JetBrains Mono', monospace;
+            margin-right: 8px;
+        }
+    </style>
+</head>
+
+<body class="bg-grid min-h-screen">
+
+<!-- Top nav -->
+<nav class="sticky top-0 z-50 border-b border-white/[.04]" style="background:#0a0a1aee;backdrop-filter:blur(12px)">
+    <div class="max-w-3xl mx-auto px-6 py-3 flex items-center justify-between">
+        <a href="index.html" class="back-link">&larr; Interactive Explorer</a>
+        <span class="text-[11px] text-gray-600 font-mono uppercase tracking-widest">Tutorial</span>
+    </div>
+</nav>
+
+<article class="max-w-3xl mx-auto px-6 pt-10 pb-16">
+
+    <!-- Title -->
+    <header class="text-center mb-10">
+        <h1 class="text-2xl md:text-3xl font-bold tracking-tight leading-tight mb-2">
+            <span class="glow-cyan text-neon-cyan">Two-State</span>
+            <span class="text-white/80"> Markov Chains</span>
+        </h1>
+        <p class="text-sm text-gray-500">A complete guide to the theory and key derivations</p>
+    </header>
+
+    <!-- Table of Contents -->
+    <nav class="toc glass p-5 mb-10">
+        <div class="text-[11px] text-gray-600 uppercase tracking-widest mb-3 font-semibold">Contents</div>
+        <ol>
+            <li><a href="#intro">Introduction &amp; the Markov Property</a></li>
+            <li><a href="#matrix">The Transition Matrix</a></li>
+            <li><a href="#kstep">Multi-Step Transition Probabilities</a></li>
+            <li><a href="#steady">Steady-State Distribution</a></li>
+            <li><a href="#coherence">Coherence Time</a></li>
+            <li><a href="#correlation">Correlation Structure &amp; Positive Dependence</a></li>
+        </ol>
+    </nav>
+
+    <!-- ════════════════════════════════════════════════ -->
+    <!-- Section 1 -->
+    <!-- ════════════════════════════════════════════════ -->
+    <h2 id="intro"><span class="section-num">1.</span> Introduction &amp; the Markov Property</h2>
+
+    <p>
+        A <strong>Markov chain</strong> is a sequence of random variables
+        $X_0, X_1, X_2, \ldots$ taking values in a finite set of <em>states</em>,
+        with the defining property that the future depends on the past only through
+        the present:
+    </p>
+
+    <div class="definition">
+        <div class="def-label">The Markov Property</div>
+        $$P(X_{n+1} = j \mid X_n = i,\; X_{n-1} = i_{n-1},\; \ldots,\; X_0 = i_0) \;=\; P(X_{n+1} = j \mid X_n = i)$$
+    </div>
+
+    <p>
+        When the state space consists of just two states, $\{0, 1\}$, we have a
+        <strong>2-state Markov chain</strong>. Despite its simplicity, this model
+        appears throughout science and engineering&mdash;from communication channels
+        (good/bad) to genetic sequences (coding/non-coding) to weather patterns
+        (dry/rainy) to economic regimes (expansion/recession).
+    </p>
+
+    <p>
+        We further assume the chain is <strong>time-homogeneous</strong>: the
+        transition probabilities do not change with time. That is,
+        $P(X_{n+1} = j \mid X_n = i)$ is the same for all $n$.
+    </p>
+
+    <!-- ════════════════════════════════════════════════ -->
+    <!-- Section 2 -->
+    <!-- ════════════════════════════════════════════════ -->
+    <h2 id="matrix"><span class="section-num">2.</span> The Transition Matrix</h2>
+
+    <p>
+        The dynamics of a time-homogeneous Markov chain are fully specified by the
+        <strong>transition probabilities</strong>:
+    </p>
+
+    $$p_{ij} \;=\; P(X_{n+1} = j \mid X_n = i)$$
+
+    <p>
+        For a 2-state chain, these form a $2 \times 2$ <strong>transition matrix</strong>:
+    </p>
+
+    $$P \;=\; \begin{pmatrix} p_{00} &amp; p_{01} \\ p_{10} &amp; p_{11} \end{pmatrix}$$
+
+    <p>
+        Since each row is a probability distribution over the next state, we require:
+    </p>
+    <ul>
+        <li>All entries non-negative: $p_{ij} \geq 0$</li>
+        <li>Row sums equal 1: $p_{00} + p_{01} = 1$ and $p_{10} + p_{11} = 1$</li>
+    </ul>
+
+    <p>
+        A matrix satisfying these conditions is called <strong>row-stochastic</strong>.
+        The row-sum constraints immediately give us:
+    </p>
+
+    $$p_{00} = 1 - p_{01}, \qquad p_{11} = 1 - p_{10}$$
+
+    <div class="result">
+        <div class="result-label">Key Insight</div>
+        <p style="margin-bottom:0">
+            A 2-state Markov chain is completely determined by just <strong>two free
+            parameters</strong>: $p_{01}$ (the probability of leaving state 0) and
+            $p_{10}$ (the probability of leaving state 1). Equivalently, one may
+            specify $p_{01}$ and $p_{11} = 1 - p_{10}$.
+        </p>
+    </div>
+
+    <p>
+        The transition matrix can therefore be written as:
+    </p>
+
+    $$P \;=\; \begin{pmatrix} 1 - p_{01} &amp; p_{01} \\ p_{10} &amp; 1 - p_{10} \end{pmatrix}$$
+
+    <!-- ════════════════════════════════════════════════ -->
+    <!-- Section 3 -->
+    <!-- ════════════════════════════════════════════════ -->
+    <h2 id="kstep"><span class="section-num">3.</span> Multi-Step Transition Probabilities</h2>
+
+    <div class="definition">
+        <div class="def-label">Definition</div>
+        <p style="margin-bottom:0">
+            The <strong>$k$-step transition probability</strong> is the probability
+            of being in state $j$ after $k$ steps, given that the chain starts in
+            state $i$:
+            $$p_{ij}^{(k)} \;=\; P(X_{n+k} = j \mid X_n = i)$$
+        </p>
+    </div>
+
+    <p>
+        A fundamental result in Markov chain theory is the
+        <strong>Chapman&ndash;Kolmogorov equation</strong>, which states that the
+        $k$-step transition matrix is simply the $k$-th matrix power:
+    </p>
+
+    $$P^{(k)} = P^k$$
+
+    <p>
+        For a $2 \times 2$ matrix, we can compute $P^k$ in closed form using
+        the <strong>spectral decomposition</strong>.
+    </p>
+
+    <h3>Step 1: Find the eigenvalues</h3>
+
+    <p>Setting $a = p_{01}$ and $b = p_{10}$ for brevity, the characteristic polynomial is:</p>
+
+    $$\det(P - \lambda I) = (1 - a - \lambda)(1 - b - \lambda) - ab = 0$$
+
+    <p>Expanding and simplifying:</p>
+
+    $$\lambda^2 - (2 - a - b)\lambda + (1 - a - b) = 0$$
+
+    <p>The discriminant is:</p>
+
+    $$(2 - a - b)^2 - 4(1 - a - b) = a^2 + 2ab + b^2 = (a + b)^2$$
+
+    <p>Applying the quadratic formula:</p>
+
+    $$\lambda = \frac{(2-a-b) \pm (a+b)}{2}$$
+
+    <div class="result">
+        <div class="result-label">Eigenvalues</div>
+        $$\lambda_1 = 1, \qquad \lambda_2 = 1 - p_{01} - p_{10}$$
+        <p style="margin-bottom:0">
+            The eigenvalue $\lambda_1 = 1$ is guaranteed for any stochastic matrix
+            (the all-ones vector is always a right eigenvector). The second eigenvalue
+            $\lambda \equiv \lambda_2 = 1 - p_{01} - p_{10}$ controls the
+            <strong>rate of convergence</strong> to steady state.
+        </p>
+    </div>
+
+    <h3>Step 2: Spectral decomposition</h3>
+
+    <p>
+        Since $P$ has two distinct eigenvalues (assuming $p_{01} + p_{10} \neq 0$
+        and $p_{01} + p_{10} \neq 2$), the Sylvester matrix formula gives:
+    </p>
+
+    $$P^n = E_1 \cdot 1^n + E_2 \cdot \lambda^n = E_1 + \lambda^n E_2$$
+
+    <p>where the <strong>spectral projection matrices</strong> are:</p>
+
+    $$E_1 = \frac{P - \lambda I}{1 - \lambda} = \frac{P - (1-a-b)I}{a+b}, \qquad E_2 = I - E_1$$
+
+    <h3>Step 3: Compute the projection matrices</h3>
+
+    $$E_1 = \frac{1}{a+b} \begin{pmatrix} b &amp; a \\ b &amp; a \end{pmatrix}, \qquad
+      E_2 = \frac{1}{a+b} \begin{pmatrix} a &amp; -a \\ -b &amp; b \end{pmatrix}$$
+
+    <p>
+        Notice that every row of $E_1$ is identical and equals the steady-state
+        distribution $(\pi_0, \pi_1)$, which we will derive in the next section.
+    </p>
+
+    <h3>Step 4: The closed-form result</h3>
+
+    <div class="result">
+        <div class="result-label">$k$-Step Transition Matrix</div>
+        $$P^n = \frac{1}{p_{01}+p_{10}} \begin{pmatrix} p_{10} + p_{01}\lambda^n &amp; p_{01} - p_{01}\lambda^n \\ p_{10} - p_{10}\lambda^n &amp; p_{01} + p_{10}\lambda^n \end{pmatrix}$$
+        <p>where $\lambda = 1 - p_{01} - p_{10}$. More compactly:</p>
+        $$p_{ij}^{(n)} = \pi_j + (\delta_{ij} - \pi_j)\,\lambda^n$$
+        <p style="margin-bottom:0">
+            where $\delta_{ij}$ is the Kronecker delta ($1$ if $i=j$, else $0$) and
+            $\pi_j$ is the steady-state probability of state $j$.
+        </p>
+    </div>
+
+    <p>
+        <strong>Interpretation:</strong> Each $n$-step transition probability is the
+        steady-state value $\pi_j$ plus a correction term $(\delta_{ij} - \pi_j)\lambda^n$
+        that decays exponentially. When $|\lambda| \lt 1$, the correction vanishes
+        as $n \to \infty$, and the chain &ldquo;forgets&rdquo; its starting state.
+    </p>
+
+    <div class="remark">
+        <div class="remark-label">Verification</div>
+        <p>At $n=0$: $\;p_{ij}^{(0)} = \pi_j + (\delta_{ij} - \pi_j) = \delta_{ij}$. &#10004;</p>
+        <p style="margin-bottom:0">At $n=1$: $\;p_{00}^{(1)} = \pi_0 + \pi_1\lambda = \frac{p_{10}}{a+b} + \frac{a}{a+b}(1-a-b) = \frac{p_{10} + a - a^2 - ab}{a+b} = \frac{(a+b)(1-a)}{a+b} = 1 - p_{01}$. &#10004;</p>
+    </div>
+
+    <!-- ════════════════════════════════════════════════ -->
+    <!-- Section 4 -->
+    <!-- ════════════════════════════════════════════════ -->
+    <h2 id="steady"><span class="section-num">4.</span> Steady-State Distribution</h2>
+
+    <div class="definition">
+        <div class="def-label">Definition</div>
+        <p style="margin-bottom:0">
+            A probability distribution $\boldsymbol{\pi} = (\pi_0, \pi_1)$ is a
+            <strong>steady-state</strong> (or <strong>stationary</strong>)
+            distribution if it satisfies:
+            $$\boldsymbol{\pi}\, P = \boldsymbol{\pi}, \qquad \pi_0 + \pi_1 = 1$$
+            Intuitively, if the chain starts in the steady state, it remains there
+            for all future times.
+        </p>
+    </div>
+
+    <h3>Derivation</h3>
+
+    <p>Writing out the equation $\boldsymbol{\pi}\,P = \boldsymbol{\pi}$ component-wise:</p>
+
+    $$\pi_0(1 - p_{01}) + \pi_1 p_{10} = \pi_0 \tag{i}$$
+    $$\pi_0 p_{01} + \pi_1(1 - p_{10}) = \pi_1 \tag{ii}$$
+
+    <p>From equation (i), rearranging:</p>
+
+    $$\pi_0 - \pi_0 p_{01} + \pi_1 p_{10} = \pi_0$$
+    $$\pi_1 p_{10} = \pi_0 p_{01}$$
+
+    <p>
+        This is the <strong>detailed balance equation</strong>&mdash;the flow from
+        state 0 to state 1 equals the flow from state 1 to state 0 at stationarity.
+        Combining with $\pi_0 + \pi_1 = 1$:
+    </p>
+
+    $$\pi_1 = \frac{\pi_0\, p_{01}}{p_{10}}, \qquad \pi_0 + \frac{\pi_0\, p_{01}}{p_{10}} = 1$$
+
+    $$\pi_0 \left(\frac{p_{10} + p_{01}}{p_{10}}\right) = 1$$
+
+    <div class="result">
+        <div class="result-label">Steady-State Distribution</div>
+        $$\pi_0 = \frac{p_{10}}{p_{01} + p_{10}}, \qquad \pi_1 = \frac{p_{01}}{p_{01} + p_{10}}$$
+        <p style="margin-bottom:0">
+            The steady-state probability of being in a state is proportional to the
+            rate of <em>entering</em> that state from the other.
+        </p>
+    </div>
+
+    <div class="remark">
+        <div class="remark-label">Existence &amp; Uniqueness</div>
+        <p style="margin-bottom:0">
+            A unique steady-state distribution exists whenever $p_{01} + p_{10} \gt 0$
+            (i.e., at least one state is not absorbing). If both $p_{01} = 0$ and
+            $p_{10} = 0$, every state is absorbing and the stationary distribution
+            depends on the initial state.
+        </p>
+    </div>
+
+    <p>
+        <strong>Connection to eigenvalues:</strong> the steady-state distribution
+        $\boldsymbol{\pi}$ is the <em>left eigenvector</em> of $P$ associated with
+        eigenvalue $\lambda_1 = 1$, normalized to sum to 1. The convergence result
+        from Section 3 confirms:
+    </p>
+
+    $$\lim_{n \to \infty} p_{ij}^{(n)} = \pi_j \quad \text{for all } i$$
+
+    <p>
+        regardless of the starting state, as long as $|\lambda| \lt 1$.
+    </p>
+
+    <!-- ════════════════════════════════════════════════ -->
+    <!-- Section 5 -->
+    <!-- ════════════════════════════════════════════════ -->
+    <h2 id="coherence"><span class="section-num">5.</span> Coherence Time</h2>
+
+    <p>
+        The <strong>coherence time</strong> (or <strong>sojourn time</strong>)
+        measures how long the chain tends to stay in a given state before
+        transitioning away. This is a key quantity for understanding how
+        &ldquo;smooth&rdquo; or &ldquo;noisy&rdquo; the chain's trajectory is.
+    </p>
+
+    <div class="definition">
+        <div class="def-label">Definition</div>
+        <p style="margin-bottom:0">
+            Let $T_i$ be the number of consecutive time steps the chain remains in
+            state $i$ before transitioning to the other state (the
+            <strong>sojourn time</strong> or <strong>dwell time</strong>).
+        </p>
+    </div>
+
+    <h3>Derivation: Distribution of sojourn time</h3>
+
+    <p>
+        Suppose the chain is currently in state 0. At each step, it transitions to
+        state 1 with probability $p_{01}$ and stays in state 0 with probability
+        $1 - p_{01}$. Therefore:
+    </p>
+
+    $$P(T_0 = k) = (1 - p_{01})^{k-1}\, p_{01}, \quad k = 1, 2, 3, \ldots$$
+
+    <p>
+        This is a <strong>geometric distribution</strong> with parameter $p_{01}$.
+        Its expected value is:
+    </p>
+
+    $$E[T_0] = \frac{1}{p_{01}}$$
+
+    <p>Similarly, the sojourn time in state 1 follows a geometric distribution with parameter $p_{10}$:</p>
+
+    $$E[T_1] = \frac{1}{p_{10}}$$
+
+    <div class="result">
+        <div class="result-label">Per-State Coherence Time</div>
+        $$\tau_0 = \frac{1}{p_{01}}, \qquad \tau_1 = \frac{1}{p_{10}}$$
+        <p style="margin-bottom:0">
+            A smaller exit probability means a longer expected stay. When $p_{01} = 0$,
+            the chain never leaves state 0 ($\tau_0 = \infty$).
+        </p>
+    </div>
+
+    <h3>Weighted average coherence time</h3>
+
+    <p>
+        If the chain is in stationarity, the probability of being in state $i$ is
+        $\pi_i$. The overall expected coherence time&mdash;the expected sojourn
+        duration in whatever state the chain currently occupies&mdash;is:
+    </p>
+
+    $$\bar{\tau} = \pi_0\,\tau_0 + \pi_1\,\tau_1 = \frac{\pi_0}{p_{01}} + \frac{\pi_1}{p_{10}}$$
+
+    <p>Substituting $\pi_0 = p_{10}/(p_{01}+p_{10})$ and $\pi_1 = p_{01}/(p_{01}+p_{10})$:</p>
+
+    $$\bar{\tau} = \frac{p_{10}}{p_{01}(p_{01}+p_{10})} + \frac{p_{01}}{p_{10}(p_{01}+p_{10})}
+    = \frac{p_{10}^2 + p_{01}^2}{p_{01}\,p_{10}\,(p_{01}+p_{10})}$$
+
+    <div class="result">
+        <div class="result-label">Weighted Average Coherence Time</div>
+        $$\bar{\tau} = \frac{p_{01}^2 + p_{10}^2}{p_{01}\,p_{10}\,(p_{01} + p_{10})}$$
+    </div>
+
+    <div class="remark">
+        <div class="remark-label">Interpretation</div>
+        <p style="margin-bottom:0">
+            High coherence time means the chain spends long stretches in each state
+            before switching&mdash;the trajectory looks &ldquo;smooth&rdquo; with
+            long plateaus. Low coherence time means frequent switching and a noisy,
+            jittery trajectory. You can visualize this directly using the
+            <a href="index.html" style="color:#00e5ff">interactive explorer</a>&mdash;try
+            small $p_{01}, p_{10}$ for smooth chains and large values for noisy ones.
+        </p>
+    </div>
+
+    <!-- ════════════════════════════════════════════════ -->
+    <!-- Section 6 -->
+    <!-- ════════════════════════════════════════════════ -->
+    <h2 id="correlation"><span class="section-num">6.</span> Correlation Structure &amp; Positive Dependence</h2>
+
+    <p>
+        A natural question: is the state at time $n+k$ correlated with the state at
+        time $n$? And if so, when is this correlation positive?
+    </p>
+
+    <h3>Autocorrelation of a stationary 2-state chain</h3>
+
+    <p>
+        Assume the chain is stationary (started from $\boldsymbol{\pi}$), so that
+        $X_n \in \{0, 1\}$ with $P(X_n = 1) = \pi_1$ for all $n$. Since $X_n$ is
+        a Bernoulli random variable:
+    </p>
+
+    $$E[X_n] = \pi_1, \qquad \text{Var}(X_n) = \pi_0\,\pi_1$$
+
+    <p>
+        Now consider the joint probability:
+    </p>
+
+    $$\begin{aligned}
+    P(X_n = 1,\; X_{n+k} = 1) &amp;= P(X_n = 1)\cdot P(X_{n+k} = 1 \mid X_n = 1) \\
+    &amp;= \pi_1 \cdot p_{11}^{(k)} \\
+    &amp;= \pi_1\bigl(\pi_1 + \pi_0\,\lambda^k\bigr)
+    \end{aligned}$$
+
+    <p>Therefore:</p>
+
+    $$\begin{aligned}
+    E[X_n\, X_{n+k}] &amp;= P(X_n = 1,\; X_{n+k} = 1) \\
+    &amp;= \pi_1^2 + \pi_0\,\pi_1\,\lambda^k
+    \end{aligned}$$
+
+    <p>The autocovariance at lag $k$ is:</p>
+
+    $$\text{Cov}(X_n,\, X_{n+k}) = E[X_n\,X_{n+k}] - \bigl(E[X_n]\bigr)^2 = \pi_0\,\pi_1\,\lambda^k$$
+
+    <p>And the autocorrelation:</p>
+
+    <div class="result">
+        <div class="result-label">Autocorrelation at Lag $k$</div>
+        $$\rho(k) = \frac{\text{Cov}(X_n,\, X_{n+k})}{\text{Var}(X_n)} = \frac{\pi_0\,\pi_1\,\lambda^k}{\pi_0\,\pi_1} = \lambda^k$$
+        <p style="margin-bottom:0">
+            where $\lambda = 1 - p_{01} - p_{10}$.
+            The autocorrelation at lag $k$ is simply $\lambda^k$&mdash;the $k$-th
+            power of the second eigenvalue.
+        </p>
+    </div>
+
+    <p>This elegant result leads immediately to the condition for positive correlation.</p>
+
+    <h3>Deriving the positive correlation condition</h3>
+
+    <div class="definition">
+        <div class="def-label">Definition</div>
+        <p style="margin-bottom:0">
+            A stationary 2-state Markov chain is <strong>positively correlated</strong>
+            if $\rho(k) \geq 0$ for all lags $k \geq 1$.
+        </p>
+    </div>
+
+    <p>Since $\rho(k) = \lambda^k$, we need $\lambda^k \geq 0$ for all $k \geq 1$:</p>
+
+    <ul>
+        <li>For even $k$: $\lambda^k \geq 0$ always (any real number raised to an even power is non-negative).</li>
+        <li>For odd $k$: $\lambda^k \geq 0$ requires $\lambda \geq 0$.</li>
+    </ul>
+
+    <p>So the binding condition is simply $\lambda \geq 0$:</p>
+
+    $$\lambda = 1 - p_{01} - p_{10} \geq 0$$
+
+    $$p_{01} + p_{10} \leq 1$$
+
+    $$1 - p_{10} \geq p_{01}$$
+
+    <div class="result">
+        <div class="result-label">Positive Correlation Condition</div>
+        $$p_{11} \geq p_{01}$$
+        <p>Equivalently: $p_{00} \geq p_{10}$, or $p_{01} + p_{10} \leq 1$, or $\lambda \geq 0$.</p>
+        <p style="margin-bottom:0">
+            <strong>Interpretation:</strong> The chain is positively correlated when
+            the probability of <em>staying</em> in state 1 ($p_{11}$) is at least as
+            large as the probability of <em>entering</em> state 1 from state 0 ($p_{01}$).
+        </p>
+    </div>
+
+    <h3>Three regimes of dependence</h3>
+
+    <p>
+        The sign of $\lambda$ partitions all 2-state chains into three qualitative regimes:
+    </p>
+
+    <div style="overflow-x:auto">
+    <table style="width:100%;border-collapse:collapse;font-size:0.9rem;margin:1rem 0">
+        <thead>
+            <tr style="border-bottom:1px solid #ffffff15">
+                <th style="text-align:left;padding:8px 12px;color:#888">Regime</th>
+                <th style="text-align:left;padding:8px 12px;color:#888">Condition</th>
+                <th style="text-align:left;padding:8px 12px;color:#888">$\lambda$</th>
+                <th style="text-align:left;padding:8px 12px;color:#888">Behavior</th>
+            </tr>
+        </thead>
+        <tbody>
+            <tr style="border-bottom:1px solid #ffffff08">
+                <td style="padding:8px 12px;color:#00ff88">Positive</td>
+                <td style="padding:8px 12px">$p_{01} + p_{10} \lt 1$</td>
+                <td style="padding:8px 12px">$0 \lt \lambda \lt 1$</td>
+                <td style="padding:8px 12px">Tends to <em>stay</em>&mdash;smooth, persistent trajectories</td>
+            </tr>
+            <tr style="border-bottom:1px solid #ffffff08">
+                <td style="padding:8px 12px;color:#888">Independent</td>
+                <td style="padding:8px 12px">$p_{01} + p_{10} = 1$</td>
+                <td style="padding:8px 12px">$\lambda = 0$</td>
+                <td style="padding:8px 12px">No memory&mdash;i.i.d. Bernoulli process</td>
+            </tr>
+            <tr>
+                <td style="padding:8px 12px;color:#ff2d95">Negative</td>
+                <td style="padding:8px 12px">$p_{01} + p_{10} \gt 1$</td>
+                <td style="padding:8px 12px">$-1 \lt \lambda \lt 0$</td>
+                <td style="padding:8px 12px">Tends to <em>switch</em>&mdash;oscillatory, jittery trajectories</td>
+            </tr>
+        </tbody>
+    </table>
+    </div>
+
+    <div class="remark">
+        <div class="remark-label">The i.i.d. case</div>
+        <p style="margin-bottom:0">
+            When $\lambda = 0$ (i.e., $p_{01} + p_{10} = 1$, equivalently
+            $p_{11} = p_{01}$), the transition probabilities from both states are
+            identical: regardless of the current state, the next state is drawn from
+            the same distribution. The chain has zero memory and reduces to a sequence
+            of independent Bernoulli trials.
+        </p>
+    </div>
+
+    <div class="remark">
+        <div class="remark-label">Summary of key quantities</div>
+        <table style="width:100%;border-collapse:collapse;font-size:0.9rem">
+            <tr style="border-bottom:1px solid #ffffff10">
+                <td style="padding:6px 0;color:#aaa">Steady state</td>
+                <td style="padding:6px 0">$\pi_0 = \dfrac{p_{10}}{p_{01}+p_{10}},\quad \pi_1 = \dfrac{p_{01}}{p_{01}+p_{10}}$</td>
+            </tr>
+            <tr style="border-bottom:1px solid #ffffff10">
+                <td style="padding:6px 0;color:#aaa">$n$-step prob.</td>
+                <td style="padding:6px 0">$p_{ij}^{(n)} = \pi_j + (\delta_{ij} - \pi_j)\lambda^n$</td>
+            </tr>
+            <tr style="border-bottom:1px solid #ffffff10">
+                <td style="padding:6px 0;color:#aaa">Autocorrelation</td>
+                <td style="padding:6px 0">$\rho(k) = \lambda^k$</td>
+            </tr>
+            <tr style="border-bottom:1px solid #ffffff10">
+                <td style="padding:6px 0;color:#aaa">Coherence time</td>
+                <td style="padding:6px 0">$\tau_i = 1/p_{i \neq i},\quad \bar\tau = \pi_0\tau_0 + \pi_1\tau_1$</td>
+            </tr>
+            <tr>
+                <td style="padding:6px 0;color:#aaa">Positive corr.</td>
+                <td style="padding:6px 0">$p_{11} \geq p_{01}$ &ensp;(equivalently $\lambda \geq 0$)</td>
+            </tr>
+        </table>
+    </div>
+
+    <!-- Footer -->
+    <div class="text-center mt-16 mb-4">
+        <a href="index.html" class="back-link text-sm">&larr; Back to Interactive Explorer</a>
+    </div>
+
+</article>
+
+<footer class="text-center border-t border-white/[.04] py-6 px-4">
+    <p class="text-sm text-gray-400 font-medium">Bhaskar Krishnamachari</p>
+    <p class="text-[11px] text-gray-600">University of Southern California (USC)</p>
+</footer>
+
+</body>
+</html>
